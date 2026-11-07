@@ -1,0 +1,163 @@
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+spring:
+  application:
+    name: knowflow-ai-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  jpa:
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# Actuator Health & Readiness Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+      roles: SUPER_ADMIN
+      probes:
+        enabled: true
+    metrics:
+      enabled: true
+    info:
+      enabled: true
+  health:
+    probes:
+      enabled: true
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+# Structured Logging Configuration
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.knowflow.ai: INFO
+    org.springframework.security: INFO
+
+knowflow:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration-ms: 86400000 # 24 hours
+      refresh-expiration-ms: 604800000 # 7 days
+    reset:
+      secret: ${RESET_TOKEN_SECRET:${JWT_SECRET}}
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173}
+
+  mail:
+    smtp:
+      host: ${KNOWFLOW_MAIL_SMTP_HOST:}
+      port: ${KNOWFLOW_MAIL_SMTP_PORT:587}
+      username: ${KNOWFLOW_MAIL_SMTP_USERNAME:}
+      password: ${KNOWFLOW_MAIL_SMTP_PASSWORD:}
+      from: ${KNOWFLOW_MAIL_FROM:no-reply@knowflow.ai}
+      timeout-ms: ${KNOWFLOW_MAIL_TIMEOUT_MS:5000}
+
+  storage:
+    type: ${STORAGE_TYPE:local}
+    local-dir: ${STORAGE_LOCAL_DIR:./storage/documents}
+
+  ai:
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-1.5-flash}
+      embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+      allow-fallback: ${GEMINI_ALLOW_FALLBACK:true}
+    chunking:
+      max-chunk-size: 800
+      overlap: 150
+    retrieval:
+      top-k: 5
+      similarity-threshold: 0.60
+      hybrid-weight-vector: 0.70
+      hybrid-weight-keyword: 0.30
+
+# SpringDoc OpenAPI configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+---
+# Local Profile (In-Memory H2 / Zero Config)
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:knowflowdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driverClassName: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+  flyway:
+    enabled: false
+
+---
+# Production / PostgreSQL Profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:knowflow_ai}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+knowflow:
+  security:
+    jwt:
+      # In production, fails fast if JWT_SECRET is not explicitly provided in environment
+      secret: ${JWT_SECRET}
+    reset:
+      secret: ${RESET_TOKEN_SECRET:${JWT_SECRET}}
+  ai:
+    gemini:
+      api-key: ${GEMINI_API_KEY}
+      allow-fallback: false
+  mail:
+    smtp:
+      host: ${KNOWFLOW_MAIL_SMTP_HOST:}
+      port: ${KNOWFLOW_MAIL_SMTP_PORT:587}
+      username: ${KNOWFLOW_MAIL_SMTP_USERNAME:}
+      password: ${KNOWFLOW_MAIL_SMTP_PASSWORD:}
+      from: ${KNOWFLOW_MAIL_FROM:no-reply@knowflow.ai}
+      timeout-ms: ${KNOWFLOW_MAIL_TIMEOUT_MS:5000}
