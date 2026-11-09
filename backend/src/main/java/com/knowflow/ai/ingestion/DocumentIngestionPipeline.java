@@ -48,6 +48,12 @@ public class DocumentIngestionPipeline {
     public void processDocument(UUID documentId) {
         Document document = documentRepository.findById(documentId).orElse(null);
         if (document == null) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+            document = documentRepository.findById(documentId).orElse(null);
+        }
+        if (document == null) {
             log.error("Document not found for ingestion pipeline: {}", documentId);
             return;
         }

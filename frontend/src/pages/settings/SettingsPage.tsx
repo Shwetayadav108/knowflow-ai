@@ -1,15 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  User,
-  Mail,
-  Shield,
   Moon,
   Sun,
   Laptop,
   LogOut,
-  Key,
-  Database,
   CheckCircle2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';

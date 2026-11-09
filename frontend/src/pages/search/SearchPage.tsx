@@ -3,18 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Search as SearchIcon,
   SlidersHorizontal,
-  FileText,
   BookOpen,
   Sparkles,
-  ArrowRight,
   Database,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
-import { searchApi, SearchParams } from '../../api/search';
+import { searchApi } from '../../api/search';
 import { RetrievedPassage } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 
 export const SearchPage: React.FC = () => {

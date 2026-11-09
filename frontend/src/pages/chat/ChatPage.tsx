@@ -17,20 +17,15 @@ import {
   AlertTriangle,
   Bot,
   User,
-  ExternalLink,
   Sparkles,
   ChevronRight,
-  X,
   Scale,
   Download,
-  Share2,
-  HelpCircle,
-  FileText,
 } from 'lucide-react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
-import { chatApi, SendMessageParams } from '../../api/chat';
+import { chatApi } from '../../api/chat';
 import { documentApi } from '../../api/documents';
-import { ConversationDto, MessageDto, CitationDto, DocumentDto } from '../../types';
+import { CitationDto, DocumentDto } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';

@@ -11,4 +11,8 @@ public interface StorageService {
     Resource loadAsResource(String storagePath);
 
     void delete(String storagePath);
+
+    default void delete(String storagePath, UUID workspaceId) {
+        delete(storagePath);
+    }
 }

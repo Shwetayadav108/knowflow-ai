@@ -17,6 +17,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -130,8 +132,18 @@ public class DocumentService {
 
             document = documentRepository.save(document);
 
-            // Enqueue asynchronous document processing pipeline
-            ingestionWorker.enqueueDocument(document.getId());
+            // Enqueue asynchronous document processing pipeline after transaction commit
+            UUID uploadedDocId = document.getId();
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        ingestionWorker.enqueueDocument(uploadedDocId);
+                    }
+                });
+            } else {
+                ingestionWorker.enqueueDocument(uploadedDocId);
+            }
 
             auditService.logAsync(workspaceId, userId, "DOCUMENT_UPLOADED", "DOCUMENT", document.getId().toString(),
                     "Uploaded document: " + docTitle + " (" + originalFilename + ")", null, "SUCCESS");
@@ -198,7 +210,15 @@ public class DocumentService {
                 ))
                 .collect(Collectors.toList());
 
-        return new DocumentPreviewDto(DocumentDto.from(document), chunkDtos);
+        String extractedTextPreview = chunks.stream()
+                .map(DocumentChunk::getContent)
+                .filter(c -> c != null && !c.isBlank())
+                .collect(Collectors.joining("\n\n"));
+        if (extractedTextPreview.length() > 5000) {
+            extractedTextPreview = extractedTextPreview.substring(0, 5000) + "\n\n... [Preview truncated]";
+        }
+
+        return new DocumentPreviewDto(DocumentDto.from(document), extractedTextPreview, chunkDtos);
     }
 
     @Transactional(readOnly = true)
@@ -274,6 +294,81 @@ public class DocumentService {
     }
 
     @Transactional
+    public void deleteDocument(UUID documentId, UUID userId, boolean permanent) {
+        if (permanent) {
+            permanentDeleteDocument(documentId, userId);
+        } else {
+            deleteDocument(documentId, userId);
+        }
+    }
+
+    @Transactional
+    public void deleteDocument(UUID workspaceId, UUID documentId, UUID userId, boolean permanent) {
+        if (permanent) {
+            permanentDeleteDocument(workspaceId, documentId, userId);
+        } else {
+            Document document = documentRepository.findByIdAndDeletedAtIsNull(documentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Document", documentId));
+            if (workspaceId != null && !document.getWorkspaceId().equals(workspaceId)) {
+                throw new AccessDeniedException("Access denied: Document does not belong to the specified workspace.");
+            }
+            deleteDocument(documentId, userId);
+        }
+    }
+
+    @Transactional
+    public void permanentDeleteDocument(UUID documentId, UUID userId) {
+        permanentDeleteDocument(null, documentId, userId);
+    }
+
+    @Transactional
+    public void permanentDeleteDocument(UUID workspaceId, UUID documentId, UUID userId) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document", documentId));
+
+        if (workspaceId != null && !document.getWorkspaceId().equals(workspaceId)) {
+            throw new AccessDeniedException("Access denied: Document does not belong to the specified workspace.");
+        }
+
+        if (!authService.canEditOrDeleteDocument(document, userId)) {
+            throw new AccessDeniedException("Access denied: You do not have permission to permanently delete this document.");
+        }
+
+        String storagePath = document.getStoragePath();
+        UUID docWorkspaceId = document.getWorkspaceId();
+
+        // 1. Delete all chunks associated with this document from database
+        chunkRepository.deleteByDocumentId(documentId);
+
+        // 2. Permanently remove document record from database
+        documentRepository.delete(document);
+
+        // 3. Physically delete file from storage with workspace boundary enforcement.
+        // Physical file deletion cannot be rolled back by a database transaction.
+        // By executing file deletion after transaction commit (via TransactionSynchronizationManager),
+        // we guarantee that if database operations or transaction commit fail, the physical file is preserved.
+        if (storagePath != null && !storagePath.isBlank()) {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            storageService.delete(storagePath, docWorkspaceId);
+                        } catch (Exception ex) {
+                            log.error("Failed to delete physical file after transaction commit for {}: {}", storagePath, ex.getMessage());
+                        }
+                    }
+                });
+            } else {
+                storageService.delete(storagePath, docWorkspaceId);
+            }
+        }
+
+        auditService.logAsync(document.getWorkspaceId(), userId, "DOCUMENT_PERMANENTLY_DELETED", "DOCUMENT", documentId.toString(),
+                "Permanently deleted document and physical storage for: " + document.getTitle(), null, "SUCCESS");
+    }
+
+    @Transactional
     public void reprocessDocument(UUID documentId, UUID userId) {
         if (!authService.canEditOrDeleteDocument(documentId, userId)) {
             throw new AccessDeniedException("Access denied: You do not have permission to reprocess this document.");
@@ -286,7 +381,16 @@ public class DocumentService {
         document.setErrorMessage(null);
         documentRepository.save(document);
 
-        ingestionWorker.enqueueDocument(documentId);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    ingestionWorker.enqueueDocument(documentId);
+                }
+            });
+        } else {
+            ingestionWorker.enqueueDocument(documentId);
+        }
         auditService.logAsync(document.getWorkspaceId(), userId, "DOCUMENT_REPROCESSED", "DOCUMENT", documentId.toString(),
                 "Triggered reprocessing for: " + document.getTitle(), null, "SUCCESS");
     }

@@ -13,7 +13,6 @@ import {
   MessageSquare,
   ShieldAlert,
   Layers,
-  Search,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuthStore } from '../../store/useAuthStore';

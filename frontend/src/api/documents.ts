@@ -79,8 +79,10 @@ export const documentApi = {
     return apiClient.put(`/workspaces/${workspaceId}/documents/${documentId}`, data);
   },
 
-  deleteDocument: (workspaceId: string, documentId: string): Promise<void> => {
-    return apiClient.delete(`/workspaces/${workspaceId}/documents/${documentId}`);
+  deleteDocument: (workspaceId: string, documentId: string, permanent: boolean = false): Promise<void> => {
+    return apiClient.delete(`/workspaces/${workspaceId}/documents/${documentId}`, {
+      params: permanent ? { permanent: true } : undefined,
+    });
   },
 
   reprocessDocument: (workspaceId: string, documentId: string): Promise<void> => {

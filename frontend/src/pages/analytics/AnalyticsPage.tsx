@@ -1,8 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart,
-  Bar,
   AreaChart,
   Area,
   XAxis,
@@ -14,15 +12,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import {
-  TrendingUp,
-  Clock,
-  Zap,
-  CheckCircle,
-  FileText,
-  AlertCircle,
-  Database,
-} from 'lucide-react';
+import { Database } from 'lucide-react';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { analyticsApi } from '../../api/analytics';
 import { Card, CardHeader, CardContent } from '../../components/ui/Card';

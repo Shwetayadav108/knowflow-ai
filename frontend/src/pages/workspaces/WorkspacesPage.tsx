@@ -7,11 +7,9 @@ import {
   Users,
   FileText,
   Calendar,
-  MoreVertical,
   Edit2,
   Trash2,
   CheckCircle,
-  ExternalLink,
 } from 'lucide-react';
 import { workspaceApi, CreateWorkspaceParams, UpdateWorkspaceParams } from '../../api/workspaces';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';

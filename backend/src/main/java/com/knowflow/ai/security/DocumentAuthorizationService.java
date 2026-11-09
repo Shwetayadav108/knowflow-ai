@@ -64,7 +64,12 @@ public class DocumentAuthorizationService {
     public boolean canEditOrDeleteDocument(UUID documentId, UUID userId) {
         Optional<Document> docOpt = documentRepository.findByIdAndDeletedAtIsNull(documentId);
         if (docOpt.isEmpty()) return false;
-        Document doc = docOpt.get();
+        return canEditOrDeleteDocument(docOpt.get(), userId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean canEditOrDeleteDocument(Document doc, UUID userId) {
+        if (doc == null || userId == null) return false;
 
         Optional<WorkspaceMembership> memOpt = membershipRepository.findByWorkspaceIdAndUserId(doc.getWorkspaceId(), userId);
         if (memOpt.isEmpty()) return false;

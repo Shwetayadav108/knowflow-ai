@@ -3,6 +3,7 @@ package com.knowflow.ai.document;
 import com.knowflow.ai.auth.CustomUserDetails;
 import com.knowflow.ai.common.ApiResponse;
 import com.knowflow.ai.common.PageResponse;
+import com.knowflow.ai.common.exception.UnauthorizedException;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -113,10 +114,28 @@ public class DocumentController {
     public ResponseEntity<ApiResponse<Void>> deleteDocument(
             @PathVariable UUID workspaceId,
             @PathVariable UUID documentId,
+            @RequestParam(value = "permanent", defaultValue = "false") boolean permanent,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        documentService.deleteDocument(documentId, userDetails.getId());
-        return ResponseEntity.ok(ApiResponse.success("Document deleted successfully", null));
+        if (userDetails == null) {
+            throw new UnauthorizedException("Authentication required.");
+        }
+        documentService.deleteDocument(workspaceId, documentId, userDetails.getId(), permanent);
+        String message = permanent ? "Document permanently deleted" : "Document deleted successfully";
+        return ResponseEntity.ok(ApiResponse.success(message, null));
+    }
+
+    @DeleteMapping("/{documentId}/permanent")
+    public ResponseEntity<ApiResponse<Void>> permanentDeleteDocument(
+            @PathVariable UUID workspaceId,
+            @PathVariable UUID documentId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            throw new UnauthorizedException("Authentication required.");
+        }
+        documentService.permanentDeleteDocument(workspaceId, documentId, userDetails.getId());
+        return ResponseEntity.ok(ApiResponse.success("Document permanently deleted", null));
     }
 
     @PostMapping("/{documentId}/reprocess")

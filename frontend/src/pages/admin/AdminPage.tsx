@@ -6,18 +6,14 @@ import {
   FolderKanban,
   FileText,
   Activity,
-  Server,
   Cpu,
-  Lock,
   ChevronLeft,
   ChevronRight,
-  Shield,
 } from 'lucide-react';
 import { adminApi } from '../../api/admin';
 import { GlobalRole, UserStatus, UserDto, WorkspaceDto, AuditLogDto } from '../../types';
-import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { RoleBadge } from '../../components/ui/Badge';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { toast } from '../../components/ui/Toast';
 import { formatDate } from '../../lib/utils';

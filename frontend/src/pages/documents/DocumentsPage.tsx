@@ -2,25 +2,20 @@ import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   UploadCloud,
-  FileText,
   Search,
   Filter,
   RefreshCw,
   Download,
   Trash2,
   Edit2,
-  AlertCircle,
   Folder,
-  Layers,
-  CheckCircle2,
-  X,
   File,
   Eye,
   Copy,
   Check,
   Shield,
-  FileCode,
 } from 'lucide-react';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { documentApi, DocumentQueryParams, UpdateDocumentParams } from '../../api/documents';
 import { DocumentDto, DocumentAccessLevel, DocumentPreviewDto } from '../../types';
@@ -29,19 +24,20 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge, AccessLevelBadge } from '../../components/ui/Badge';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { toast } from '../../components/ui/Toast';
 import { formatBytes, formatDate } from '../../lib/utils';
 
 export const DocumentsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const role = currentWorkspace?.userRole || 'VIEWER';
   const canUpload = role === 'WORKSPACE_ADMIN' || role === 'EDITOR';
-  const canEdit = role === 'WORKSPACE_ADMIN' || role === 'EDITOR';
-  const canDelete = role === 'WORKSPACE_ADMIN';
+  const canManageDoc = (doc: DocumentDto) =>
+    role === 'WORKSPACE_ADMIN' || (role === 'EDITOR' && doc.uploadedBy === user?.id);
 
   // Filter and pagination states
   const [search, setSearch] = useState('');
@@ -193,7 +189,7 @@ export const DocumentsPage: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: () =>
-      documentApi.deleteDocument(currentWorkspace!.id, activeDoc!.id),
+      documentApi.deleteDocument(currentWorkspace!.id, activeDoc!.id, true),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents', currentWorkspace?.id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-metrics', currentWorkspace?.id] });
@@ -515,7 +511,7 @@ export const DocumentsPage: React.FC = () => {
                         >
                           <Download className="w-3.5 h-3.5" />
                         </Button>
-                        {canEdit && (
+                        {canManageDoc(doc) && (
                           <>
                             <Button
                               variant="ghost"
@@ -533,18 +529,16 @@ export const DocumentsPage: React.FC = () => {
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-rose-500 hover:text-rose-600"
+                              onClick={() => openDelete(doc)}
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
                           </>
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-rose-500 hover:text-rose-600"
-                            onClick={() => openDelete(doc)}
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
                         )}
                       </div>
                     </td>

@@ -81,4 +81,85 @@ public class DocumentAccessControlTest {
         // Viewer cannot view
         assertFalse(documentAuthorizationService.canViewDocument(docId, viewerId));
     }
+
+    @Test
+    public void testAdminCanEditOrDeleteAnyDocument() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+
+        Document doc = new Document(workspaceId, "Doc.pdf", "Doc.pdf", FileType.PDF, 1024, "/path", "application/pdf", otherUserId);
+        doc.setId(docId);
+
+        Workspace ws = new Workspace("WS", "slug", "desc", adminId);
+        when(membershipRepository.findByWorkspaceIdAndUserId(workspaceId, adminId))
+                .thenReturn(Optional.of(new WorkspaceMembership(ws, null, WorkspaceRole.WORKSPACE_ADMIN)));
+
+        assertTrue(documentAuthorizationService.canEditOrDeleteDocument(doc, adminId));
+    }
+
+    @Test
+    public void testEditorCanEditOrDeleteOwnDocument() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID editorId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+
+        Document doc = new Document(workspaceId, "Doc.pdf", "Doc.pdf", FileType.PDF, 1024, "/path", "application/pdf", editorId);
+        doc.setId(docId);
+
+        Workspace ws = new Workspace("WS", "slug", "desc", editorId);
+        when(membershipRepository.findByWorkspaceIdAndUserId(workspaceId, editorId))
+                .thenReturn(Optional.of(new WorkspaceMembership(ws, null, WorkspaceRole.EDITOR)));
+
+        assertTrue(documentAuthorizationService.canEditOrDeleteDocument(doc, editorId));
+    }
+
+    @Test
+    public void testEditorCannotEditOrDeleteOthersDocument() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID editorId = UUID.randomUUID();
+        UUID uploaderId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+
+        Document doc = new Document(workspaceId, "Doc.pdf", "Doc.pdf", FileType.PDF, 1024, "/path", "application/pdf", uploaderId);
+        doc.setId(docId);
+
+        Workspace ws = new Workspace("WS", "slug", "desc", uploaderId);
+        when(membershipRepository.findByWorkspaceIdAndUserId(workspaceId, editorId))
+                .thenReturn(Optional.of(new WorkspaceMembership(ws, null, WorkspaceRole.EDITOR)));
+
+        assertFalse(documentAuthorizationService.canEditOrDeleteDocument(doc, editorId));
+    }
+
+    @Test
+    public void testViewerCannotEditOrDeleteDocument() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID viewerId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+
+        Document doc = new Document(workspaceId, "Doc.pdf", "Doc.pdf", FileType.PDF, 1024, "/path", "application/pdf", viewerId);
+        doc.setId(docId);
+
+        Workspace ws = new Workspace("WS", "slug", "desc", viewerId);
+        when(membershipRepository.findByWorkspaceIdAndUserId(workspaceId, viewerId))
+                .thenReturn(Optional.of(new WorkspaceMembership(ws, null, WorkspaceRole.VIEWER)));
+
+        assertFalse(documentAuthorizationService.canEditOrDeleteDocument(doc, viewerId));
+    }
+
+    @Test
+    public void testNonMemberCannotEditOrDeleteDocument() {
+        UUID workspaceId = UUID.randomUUID();
+        UUID nonMemberId = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+
+        Document doc = new Document(workspaceId, "Doc.pdf", "Doc.pdf", FileType.PDF, 1024, "/path", "application/pdf", nonMemberId);
+        doc.setId(docId);
+
+        when(membershipRepository.findByWorkspaceIdAndUserId(workspaceId, nonMemberId))
+                .thenReturn(Optional.empty());
+
+        assertFalse(documentAuthorizationService.canEditOrDeleteDocument(doc, nonMemberId));
+    }
 }

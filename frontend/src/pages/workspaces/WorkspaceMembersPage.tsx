@@ -6,12 +6,10 @@ import {
   UserPlus,
   ArrowLeft,
   Mail,
-  Shield,
   Trash2,
   Calendar,
   Copy,
   Check,
-  Clock,
   Send,
   XCircle,
 } from 'lucide-react';

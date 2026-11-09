@@ -76,12 +76,26 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public Resource loadAsResource(String storagePath) {
+        if (storagePath == null || storagePath.isBlank()) {
+            throw new ResourceNotFoundException("Document storage path cannot be empty");
+        }
         try {
-            Path file = Paths.get(storagePath).normalize();
+            Path file = Paths.get(storagePath).toAbsolutePath().normalize();
             if (!file.startsWith(this.rootPath)) {
                 throw new KnowFlowException("Access denied: path is outside document storage boundary");
             }
-            Resource resource = new UrlResource(file.toUri());
+            if (Files.isSymbolicLink(file)) {
+                throw new KnowFlowException("Security violation: symbolic links are not permitted in document storage: " + storagePath);
+            }
+            if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+                throw new ResourceNotFoundException("Document file not found: " + storagePath);
+            }
+            Path realFile = file.toRealPath();
+            Path realRoot = this.rootPath.toRealPath();
+            if (!realFile.startsWith(realRoot)) {
+                throw new KnowFlowException("Access denied: real path is outside document storage boundary");
+            }
+            Resource resource = new UrlResource(realFile.toUri());
             if (resource.exists() && resource.isReadable()) {
                 return resource;
             } else {
@@ -89,19 +103,81 @@ public class LocalStorageService implements StorageService {
             }
         } catch (MalformedURLException e) {
             throw new ResourceNotFoundException("Malformed document URL path: " + storagePath);
+        } catch (IOException e) {
+            throw new KnowFlowException("Failed to access document file: " + e.getMessage(), e);
         }
     }
 
     @Override
     public void delete(String storagePath) {
-        try {
-            Path file = Paths.get(storagePath).normalize();
-            if (file.startsWith(this.rootPath)) {
-                Files.deleteIfExists(file);
-                log.info("Deleted document file at: {}", storagePath);
-            }
-        } catch (IOException e) {
-            log.warn("Failed to delete physical file {}: {}", storagePath, e.getMessage());
+        delete(storagePath, null);
+    }
+
+    @Override
+    public void delete(String storagePath, UUID workspaceId) {
+        if (storagePath == null || storagePath.isBlank()) {
+            log.warn("Storage path is empty. Skipping physical file deletion.");
+            return;
         }
+
+        try {
+            Path file = Paths.get(storagePath).toAbsolutePath().normalize();
+
+            // Syntactic check: prevent path traversal outside root storage boundary
+            if (!file.startsWith(this.rootPath)) {
+                throw new KnowFlowException("Security violation: path is outside document storage boundary: " + storagePath);
+            }
+
+            // Enforce workspace boundary if workspaceId is provided
+            if (workspaceId != null) {
+                Path workspaceDir = this.rootPath.resolve(workspaceId.toString()).normalize();
+                if (!file.startsWith(workspaceDir)) {
+                    throw new KnowFlowException("Security violation: path escapes workspace storage boundary: " + storagePath);
+                }
+            }
+
+            // Handle missing files gracefully without following symlinks
+            if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+                log.warn("Physical file does not exist at path: {}. Skipping physical deletion.", storagePath);
+                return;
+            }
+
+            // Reject symbolic links explicitly
+            if (Files.isSymbolicLink(file)) {
+                throw new KnowFlowException("Security violation: symbolic links are not permitted in document storage: " + storagePath);
+            }
+
+            // Resolve real canonical path to prevent symlink traversal outside root or workspace directory
+            Path realFile = file.toRealPath();
+            Path realRoot = this.rootPath.toRealPath();
+            if (!realFile.startsWith(realRoot)) {
+                throw new KnowFlowException("Security violation: real target path is outside document storage boundary: " + storagePath);
+            }
+
+            if (workspaceId != null) {
+                Path workspaceDir = this.rootPath.resolve(workspaceId.toString()).normalize();
+                Path realWorkspaceDir = Files.exists(workspaceDir) ? workspaceDir.toRealPath() : realRoot.resolve(workspaceId.toString());
+                if (!realFile.startsWith(realWorkspaceDir)) {
+                    throw new KnowFlowException("Security violation: real target path escapes workspace boundary: " + storagePath);
+                }
+            }
+
+            // Ensure target is a regular file, not a directory
+            if (!Files.isRegularFile(realFile, LinkOption.NOFOLLOW_LINKS)) {
+                throw new KnowFlowException("Security violation: storage path does not refer to a regular file: " + storagePath);
+            }
+
+            // Delete physical file
+            Files.delete(realFile);
+            log.info("Permanently deleted physical file at: {}", storagePath);
+
+        } catch (IOException e) {
+            log.error("Failed to delete physical file {}: {}", storagePath, e.getMessage());
+            throw new KnowFlowException("Failed to delete physical file: " + e.getMessage(), e);
+        }
+    }
+
+    public Path getRootPath() {
+        return rootPath;
     }
 }
